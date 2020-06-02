@@ -20,8 +20,7 @@ const int RELAY_PIN = D4;
 
 // software
 HTTPClient http;
-
-String sensor_host = "";
+String sensor_host = "http://192.168.4.2";
 
 // thresholds in cm; sensor value
 const int SENSOR_FULL_THRESHOLD = 20;
@@ -42,8 +41,7 @@ const int STATE_IDLE = 0;
 const int STATE_ERROR = 1;
 const int STATE_SENSOR_CONNECTED = 2;
 const int STATE_SENSOR_OK = 3;
-const int STATE_SENSOR_LOW = 4;
-const int STATE_RELAY_CLOSED = 5;
+const int STATE_RELAY_CLOSED = 4;
 
 int get_state() {
   return SERVER_STATE;
@@ -60,11 +58,6 @@ void state_on_sensor_full() {
   SERVER_STATE = STATE_SENSOR_OK;
 }
 
-void state_on_sensor_low() {
-  Serial.println("state_on_sensor_low");
-  SERVER_STATE = STATE_SENSOR_LOW;
-}
-
 void state_on_relay_close() {
   Serial.println("state_on_relay_close");
   SERVER_STATE = STATE_RELAY_CLOSED;
@@ -76,12 +69,13 @@ void state_on_error() {
 }
 
 void handleRoot() {
-  server.send(200, "text/html", "<h1>You are connected</h1>");
+  server.send(200, "text/html", "ESP-Pump-Server");
 }
 
 void handleRegister() {
   if (server.method() != HTTP_POST) {
-  server.send(405, "text/plain", "Method Not Allowed");
+    server.send(405, "text/plain", "Method Not Allowed");
+    Serial.println("handleRegister wrong method");
   } else {
     String message = "";
 
@@ -105,12 +99,10 @@ void handleRegister() {
     } else {
       server.send(401, "text/html", "Wrong arguments");
     }
-
   }
 }
 
 void readSensorData() {
-  HTTPClient http;
   String URL = sensor_host + "/sensor";
   http.begin(URL);
   
@@ -142,7 +134,7 @@ void check_measurement(int tmp_last_measurement) {
     } else {
       // relay open, just watching the tank
       if (last_measurement >= SENSOR_LOW_THRESHOLD) {
-        state_on_sensor_low();
+        state_on_relay_close();
       }
     }
     
@@ -175,7 +167,6 @@ void setup() {
 
 void loop() {
   server.handleClient();
-
   
 /*
  * State Loop
@@ -187,12 +178,10 @@ void loop() {
      * poll sensor with timer ACTIVE
  * 
  */
-  if (get_state() >= STATE_SENSOR_CONNECTED) {    
-    readSensorData();
 
-    if (get_state() == STATE_SENSOR_LOW) {
-      state_on_relay_close();
-    }
+  readSensorData();
+  if (get_state() >= STATE_SENSOR_CONNECTED) {    
+//    readSensorData();
   }
 
   digitalWrite(RELAY_PIN, get_state() == STATE_RELAY_CLOSED);
